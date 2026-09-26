@@ -20,6 +20,26 @@ namespace MatchZy
     {
         private IDbConnection connection;
 
+        // One IDbConnection is shared by the game thread and several Task.Run callers (round_end,
+        // map end, CSV export). ADO.NET connections are not thread-safe, so serialize access.
+        private readonly SemaphoreSlim dbLock = new(1, 1);
+
+        // The MySQL connection is opened once at plugin load; after wait_timeout (or a DB restart) the
+        // server drops it and the next command fails with "Connection reset by peer". Re-open if dead.
+        private void EnsureOpen()
+        {
+            if (connection is MySqlConnection mysql)
+            {
+                if (mysql.State == ConnectionState.Open && mysql.Ping()) return;
+                mysql.Close();
+                mysql.Open();
+            }
+            else if (connection.State != ConnectionState.Open)
+            {
+                connection.Open();
+            }
+        }
+
         DatabaseConfig? config;
         public DatabaseType databaseType { get; set; }
 
@@ -231,8 +251,10 @@ namespace MatchZy
 
         public long InitMatch(string team1name, string team2name, string serverIp, bool isMatchSetup, long liveMatchId, int mapNumber, string seriesType, MatchConfig matchConfig)
         {
+            dbLock.Wait();
             try
             {
+                EnsureOpen();
                 string mapName = isMatchSetup ? matchConfig.Maplist[mapNumber] : Server.MapName;
                 string dateTimeExpression = (connection is SqliteConnection) ? "datetime('now')" : "NOW()";
 
@@ -282,11 +304,17 @@ namespace MatchZy
                 Log($"[InsertMatchData - FATAL] Error inserting data: {ex.Message}");
                 return liveMatchId;
             }
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         public void UpdateTeamData(int matchId, string team1name, string team2name) {
+            dbLock.Wait();
             try
             {
+                EnsureOpen();
                 connection.Execute(@"
                     UPDATE matchzy_stats_matches
                     SET team1_name = @team1name, team2_name = @team2name
@@ -299,12 +327,18 @@ namespace MatchZy
             {
                 Log($"[UpdateTeamData - FATAL] Error updating data of matchId: {matchId} [ERROR]: {ex.Message}");
             }
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         public async Task SetMapEndData(long matchId, int mapNumber, string winnerName, int t1score, int t2score, int team1SeriesScore, int team2SeriesScore)
         {
+            await dbLock.WaitAsync();
             try
             {
+                EnsureOpen();
                 string dateTimeExpression = (connection is SqliteConnection) ? "datetime('now')" : "NOW()";
 
                 string sqlQuery = $@"
@@ -327,12 +361,18 @@ namespace MatchZy
             {
                 Log($"[SetMapEndData - FATAL] Error updating data of matchId: {matchId} mapNumber: {mapNumber} [ERROR]: {ex.Message}");
             } 
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         public async Task SetMatchEndData(long matchId, string winnerName, int t1score, int t2score)
         {
+            await dbLock.WaitAsync();
             try
             {
+                EnsureOpen();
                 string dateTimeExpression = (connection is SqliteConnection) ? "datetime('now')" : "NOW()";
 
                 string sqlQuery = $@"
@@ -348,12 +388,18 @@ namespace MatchZy
             {
                 Log($"[SetMatchEndData - FATAL] Error updating data of matchId: {matchId} [ERROR]: {ex.Message}");
             }
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         public async Task UpdateMapStatsAsync(long matchId, int mapNumber, int t1score, int t2score)
         {
+            await dbLock.WaitAsync();
             try
             {
+                EnsureOpen();
                 string sqlQuery = $@"
                     UPDATE matchzy_stats_maps
                     SET team1_score = @t1score, team2_score = @t2score
@@ -365,12 +411,18 @@ namespace MatchZy
             {
                 Log($"[UpdatePlayerStats - FATAL] Error updating data of matchId: {matchId} [ERROR]: {ex.Message}");
             }
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         public async Task UpdatePlayerStatsAsync(long matchId, int mapNumber, Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary)
         {
+            await dbLock.WaitAsync();
             try
             {
+                EnsureOpen();
                 foreach (ulong steamid64 in playerStatsDictionary.Keys)
                 {
                     Log($"[UpdatePlayerStats] Going to update data for Match: {matchId}, MapNumber: {mapNumber}, Player: {steamid64}");
@@ -477,11 +529,23 @@ namespace MatchZy
             {
                 Log($"[UpdatePlayerStats - FATAL] Error inserting/updating data: {ex.Message}");
             }
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         public async Task WritePlayerStatsToCsv(string filePath, long matchId, int mapNumber)
         {
+            await dbLock.WaitAsync();
             try {
+                EnsureOpen();
+                // Query first: previously the (empty) file was created before the query ran, so any DB
+                // error - e.g. racing the last round's UpdatePlayerStatsAsync on the shared connection -
+                // left an empty match_data_map*.csv behind.
+                IEnumerable<dynamic> playerStatsData = await connection.QueryAsync(
+                    "SELECT * FROM matchzy_stats_players WHERE matchid = @MatchId AND mapnumber = @MapNumber ORDER BY team, kills DESC", new { MatchId = matchId, MapNumber = mapNumber });
+
                 string csvFilePath = $"{filePath}/match_data_map{mapNumber}_{matchId}.csv";
                 string? directoryPath = Path.GetDirectoryName(csvFilePath);
                 if (directoryPath != null)
@@ -495,9 +559,6 @@ namespace MatchZy
                 using (var writer = new StreamWriter(csvFilePath))
                 using (var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)))
                 {
-                    IEnumerable<dynamic> playerStatsData = await connection.QueryAsync(
-                        "SELECT * FROM matchzy_stats_players WHERE matchid = @MatchId AND mapnumber = @MapNumber ORDER BY team, kills DESC", new { MatchId = matchId, MapNumber = mapNumber });
-
                     // Use the first data row to get the column names
                     dynamic? firstDataRow = playerStatsData.FirstOrDefault();
                     if (firstDataRow != null)
@@ -525,7 +586,10 @@ namespace MatchZy
             {
                 Log($"[WritePlayerStatsToCsv - FATAL] Error writing data: {ex.Message}");
             }
-
+            finally
+            {
+                dbLock.Release();
+            }
         }
 
         private void CreateDefaultConfigFile(string configFile)

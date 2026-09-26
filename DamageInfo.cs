@@ -55,6 +55,12 @@ namespace MatchZy
 				attackerInfo[targetId] = targetInfo = new DamagePlayerInfo();
 
 			targetInfo.DamageHP += @event.DmgHealth;
+			// Molotov/incendiary burn fires player_hurt every tick; count one fire hit per pair per round.
+			if (@event.Weapon == "inferno")
+			{
+				if (targetInfo.InfernoHit) return;
+				targetInfo.InfernoHit = true;
+			}
 			targetInfo.Hits++;
 		}
 
@@ -126,5 +132,6 @@ namespace MatchZy
 	{
 		public int DamageHP { get; set; } = 0;
 		public int Hits { get; set; } = 0;
+		public bool InfernoHit { get; set; } = false;
 	}
 }

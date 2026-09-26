@@ -67,13 +67,23 @@ namespace MatchZy
             string demoPath = Path.Join(Server.GameDirectory + "/csgo/", activeDemoFile);
             (int t1score, int t2score) = GetTeamsScore();
             int roundNumber = t1score + t2score;
+            string demoToStop = activeDemoFile;
             AddTimer(delay, () =>
             {
-                if (isDemoRecording)
+                // A new recording may already have started (next map / next match) while this timer
+                // was pending; stopping then would kill the new demo and leave isDemoRecording wrong.
+                if (isDemoRecording && this.activeDemoFile != demoToStop)
                 {
-                    Server.ExecuteCommand($"tv_stoprecord");
+                    Log($"[StopDemoRecording] Skipping stop of {demoToStop}: {this.activeDemoFile} is now recording.");
                 }
-                isDemoRecording = false;
+                else
+                {
+                    if (isDemoRecording)
+                    {
+                        Server.ExecuteCommand($"tv_stoprecord");
+                    }
+                    isDemoRecording = false;
+                }
                 AddTimer(15, () =>
                 {
                     Task.Run(async () =>

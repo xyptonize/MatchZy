@@ -317,6 +317,9 @@ namespace MatchZy
             // });
 
             RegisterListener<Listeners.OnMapStart>(mapName => { 
+                // The engine ends any tv_record on map change; without this a stale flag makes the next
+                // StartDemoRecording() bail with "already in progress" and the map is never recorded.
+                isDemoRecording = false;
                 AddTimer(1.0f, () => {
                     if (!isMatchSetup)
                     {

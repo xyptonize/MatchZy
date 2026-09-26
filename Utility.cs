@@ -787,8 +787,7 @@ namespace MatchZy
             }
             else
             {
-                StartDemoRecording();
-                StartLive();
+                StartLive(); // StartLive() starts the demo itself
             }
             if (showCreditsOnMatchStart.Value)
             {
@@ -871,6 +870,7 @@ namespace MatchZy
             (int t1score, int t2score) = GetTeamsScore();
             int team1SeriesScore = matchzyTeam1.seriesScore;
             int team2SeriesScore = matchzyTeam2.seriesScore;
+            (_, List<StatsPlayer> mapStatsTeam1, List<StatsPlayer> mapStatsTeam2) = GetPlayerStatsDict();
 
             string statsPath = Server.GameDirectory + "/csgo/MatchZy_Stats/" + liveMatchId.ToString();
 
@@ -878,9 +878,10 @@ namespace MatchZy
             {
                 MatchId = liveMatchId,
                 MapNumber = currentMapNumber,
-                Winner = new Winner(t1score > t2score && reverseTeamSides["CT"] == matchzyTeam1 ? "3" : "2", t1score > t2score ? "team1" : "team2"),
-                StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, team1SeriesScore, t1score, 0, 0, new List<StatsPlayer>()),
-                StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, team2SeriesScore, t2score, 0, 0, new List<StatsPlayer>())
+                // side = the side the map winner finished on (old expression reported "2" whenever team2 won, even on CT)
+                Winner = new Winner(reverseTeamSides["CT"] == (t1score > t2score ? matchzyTeam1 : matchzyTeam2) ? "3" : "2", t1score > t2score ? "team1" : "team2"),
+                StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, team1SeriesScore, t1score, 0, 0, mapStatsTeam1),
+                StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, team2SeriesScore, t2score, 0, 0, mapStatsTeam2)
             };
 
             Task.Run(async () =>
@@ -1072,8 +1073,8 @@ namespace MatchZy
                         Reason = @event.Reason,
                         RoundTime = 0,
                         Winner = winner,
-                        StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, 0, t1score, 0, 0, playerStatsListTeam1),
-                        StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, 0, t2score, 0, 0, playerStatsListTeam2),
+                        StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, matchzyTeam1.seriesScore, t1score, 0, 0, playerStatsListTeam1),
+                        StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, matchzyTeam2.seriesScore, t2score, 0, 0, playerStatsListTeam2),
                     };
 
                     Task.Run(async () =>
@@ -1410,7 +1411,13 @@ namespace MatchZy
 
         public void LoadClientNames()
         {
-            string namesFileName = "Match_" + liveMatchId.ToString() + ".ini";
+            // liveMatchId is still -1 here when the match JSON has no "matchid" (the DB id is only
+            // assigned at match start), so every server sharing this csgo dir would write Match_-1.ini.
+            // Key the file by hostport in that case so instances cannot overwrite each other.
+            string namesKey = liveMatchId != -1
+                ? liveMatchId.ToString()
+                : $"-1_{ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 0}";
+            string namesFileName = "Match_" + namesKey + ".ini";
             string namesFilePath = Server.GameDirectory + "/csgo/MatchZyPlayerNames/" + namesFileName;
             string? directoryPath = Path.GetDirectoryName(namesFilePath);
             if (directoryPath != null)
