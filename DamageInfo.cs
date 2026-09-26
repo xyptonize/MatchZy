@@ -11,6 +11,7 @@ namespace MatchZy
 
         private void InitPlayerDamageInfo()
         {
+            PruneStalePlayers(); // LANN
             foreach (var key in playerData.Keys) {
                 if (!playerData[key].IsValid) continue;
                 if (playerData[key].IsBot) continue;

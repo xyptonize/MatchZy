@@ -77,6 +77,7 @@ public partial class MatchZy
     {
         int playerCount = 0;
         int readyCount = 0;
+        PruneStalePlayers(); // LANN
         foreach (var key in playerData.Keys)
         {
             if (!playerData[key].IsValid) continue;
@@ -108,6 +109,7 @@ public partial class MatchZy
             return;
         }
 
+        PruneStalePlayers(); // LANN
         foreach (var key in playerData.Keys)
         {
             if (!playerData[key].IsValid) continue;

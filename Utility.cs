@@ -143,6 +143,7 @@ namespace MatchZy
         private void SendUnreadyPlayersMessage()
         {
             if (!isWarmup || matchStarted) return;
+            PruneStalePlayers();
             List<string> unreadyPlayers = new();
 
             foreach (var key in playerReadyStatus.Keys)
@@ -713,6 +714,7 @@ namespace MatchZy
 
         private void HandleMatchStart()
         {
+            PruneStalePlayers();
             isPractice = false;
             isDryRun = false;
             if (isRoundRestorePending)
@@ -1814,6 +1816,28 @@ namespace MatchZy
             if (player.UserId.HasValue)
             {
                 Server.ExecuteCommand($"kickid {(ushort)player.UserId}");
+            }
+        }
+
+        // LANN: drop playerData/playerReadyStatus entries whose controller is gone or no longer connected.
+        // Safe to call anywhere; must run before any code that dereferences playerData[key].
+        private void PruneStalePlayers()
+        {
+            foreach (var key in playerData.Keys.ToList())
+            {
+                var p = playerData[key];
+                bool stale;
+                try { stale = p == null || !p.IsValid || p.Connected != PlayerConnectedState.PlayerConnected; }
+                catch { stale = true; }
+                if (!stale) continue;
+                playerData.Remove(key);
+                if (playerReadyStatus.Remove(key)) connectedPlayers = Math.Max(0, connectedPlayers - 1);
+            }
+            foreach (var key in playerReadyStatus.Keys.ToList())
+            {
+                if (playerData.ContainsKey(key)) continue;
+                playerReadyStatus.Remove(key);
+                connectedPlayers = Math.Max(0, connectedPlayers - 1);
             }
         }
 

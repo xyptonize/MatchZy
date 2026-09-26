@@ -79,8 +79,10 @@ public partial class MatchZy
         {
             CCSPlayerController? player = @event.Userid;
 
-            if (!IsPlayerValid(player)) return HookResult.Continue;
-            if (!player!.UserId.HasValue) return HookResult.Continue;
+            // LANN: do NOT use IsPlayerValid() here - it requires a live pawn, which is usually already gone
+            // on disconnect, so cleanup was skipped and a stale controller stayed in playerData/playerReadyStatus
+            // (-> "Schema target points to null" in SendUnreadyPlayersMessage / HandleMatchStart).
+            if (player == null || !player.IsValid || !player.UserId.HasValue) { PruneStalePlayers(); return HookResult.Continue; }
             int userId = player.UserId.Value;
 
             if (playerReadyStatus.ContainsKey(userId))

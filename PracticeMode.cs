@@ -1148,6 +1148,7 @@ namespace MatchZy
 
             Dictionary<int, MoveType_t> preFastForwardMoveTypes = new();
 
+            PruneStalePlayers(); // LANN
             foreach (var key in playerData.Keys) {
                 if(!IsPlayerValid(playerData[key])) continue;
                 preFastForwardMoveTypes[key] = playerData[key].PlayerPawn.Value!.MoveType;
@@ -1171,6 +1172,7 @@ namespace MatchZy
         public void ResetFastForward(Dictionary<int, MoveType_t> preFastForwardMoveTypes) {
             if (!isPractice) return;
             Server.ExecuteCommand("host_timescale 1");
+            PruneStalePlayers(); // LANN
             foreach (var key in playerData.Keys) {
                 if(!IsPlayerValid(playerData[key])) continue;
                 playerData[key].PlayerPawn.Value!.MoveType = preFastForwardMoveTypes[key];

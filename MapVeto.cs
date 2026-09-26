@@ -311,6 +311,7 @@ namespace MatchZy
                 {"team1", -1},
                 {"team2", -1}
             };
+            PruneStalePlayers(); // LANN
             foreach (var key in playerReadyStatus.Keys) {
                 playerReadyStatus[key] = false;
             }
@@ -342,6 +343,7 @@ namespace MatchZy
             // Also required if the map doesn't need to change.
             SetMapSides();
             ExecuteChangedConvars();
+            PruneStalePlayers(); // LANN
             foreach (var key in playerReadyStatus.Keys) {
                 playerReadyStatus[key] = false;
             }
@@ -372,6 +374,7 @@ namespace MatchZy
         {
             Team matchzyTeam = team == "team1" ? matchzyTeam1 : matchzyTeam2;
             int teamSide = teamSides[matchzyTeam] == "CT" ? 3 : 2;
+            PruneStalePlayers(); // LANN
             foreach (var key in playerData.Keys)
             {
                 if (!playerData[key].IsValid || playerData[key].IsBot) continue;
@@ -383,6 +386,7 @@ namespace MatchZy
 
         public void SwapPlayersToTeams()
         {
+            PruneStalePlayers(); // LANN
             foreach (var key in playerData.Keys)
             {
                 if (!playerData[key].IsValid || playerData[key].IsBot) continue;

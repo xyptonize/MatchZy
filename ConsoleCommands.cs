@@ -64,6 +64,7 @@ namespace MatchZy
         [ConsoleCommand("css_ready", "Marks the player ready")]
         public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
         {
+            PruneStalePlayers(); // LANN
             if (player == null) return;
             Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
             if (readyAvailable && !matchStarted)
