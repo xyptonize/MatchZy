@@ -44,6 +44,9 @@ public class GrenadeThrownData
 
     public void Throw(CCSPlayerController player)
     {
+		// Called from a delayed timer: the thrower may have disconnected meanwhile, and
+		// player.Team / PlayerPawn.Raw on a freed controller are native reads.
+		if (player == null || !player.IsValid || !player.PlayerPawn.IsValid || player.PlayerPawn.Value == null) return;
 		CBaseCSGrenadeProjectile? grenadeEntity = null;
 		switch (Type)
 		{

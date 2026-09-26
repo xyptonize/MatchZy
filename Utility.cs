@@ -628,6 +628,9 @@ namespace MatchZy
                 return;
             }
 
+            // Map files are lowercase on disk; a mixed-case changelevel passes IsMapValid but
+            // fails to load (NETWORK_DISCONNECT_CREATE_SERVER_FAILED -> ss_dead). See upstream #262.
+            mapName = mapName.Trim().ToLowerInvariant();
             if (!long.TryParse(mapName, out _) && !mapName.Contains('_'))
             {
                 mapName = "de_" + mapName;
@@ -967,6 +970,7 @@ namespace MatchZy
 
         private void ChangeMap(string mapName, float delay)
         {
+            if (!long.TryParse(mapName, out _)) mapName = mapName.Trim().ToLowerInvariant();
             Log($"[ChangeMap] Changing map to {mapName} with delay {delay}");
             AddTimer(delay, () =>
             {

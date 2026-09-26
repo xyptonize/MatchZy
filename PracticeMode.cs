@@ -205,7 +205,9 @@ namespace MatchZy
             {
                 if (spawn.IsValid && spawn.Enabled && spawn.Priority == minPriority)
                 {
-                    spawnsData[(byte)CsTeam.CounterTerrorist].Add(new Position(spawn.CBodyComponent?.SceneNode?.AbsOrigin!, spawn.CBodyComponent?.SceneNode?.AbsRotation!));
+                    var node = spawn.CBodyComponent?.SceneNode;
+                    if (node == null) continue; // malformed spawn on some workshop maps (upstream #303)
+                    spawnsData[(byte)CsTeam.CounterTerrorist].Add(new Position(node.AbsOrigin, node.AbsRotation));
                 }
             }
 
@@ -214,7 +216,9 @@ namespace MatchZy
             {
                 if (spawn.IsValid && spawn.Enabled && spawn.Priority == minPriority)
                 {
-                    spawnsData[(byte)CsTeam.Terrorist].Add(new Position(spawn.CBodyComponent?.SceneNode?.AbsOrigin!, spawn.CBodyComponent?.SceneNode?.AbsRotation!));
+                    var node = spawn.CBodyComponent?.SceneNode;
+                    if (node == null) continue; // malformed spawn on some workshop maps (upstream #303)
+                    spawnsData[(byte)CsTeam.Terrorist].Add(new Position(node.AbsOrigin, node.AbsRotation));
                 }
             }
 
@@ -1375,7 +1379,8 @@ namespace MatchZy
                 return;
             }
 
-            string[] argsList = argString.Split();
+            string[] argsList = argString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            int throwSlot = 0;
 
             foreach (string arg in argsList)
             {
@@ -1385,7 +1390,9 @@ namespace MatchZy
                     {
                         positionNumber -= 1;
                         GrenadeThrownData grenadeThrown = lastGrenadesData[userId][positionNumber];
-                        AddTimer(grenadeThrown.Delay, () => grenadeThrown.Throw(player));
+                        // Stagger by one tick-ish per grenade so several projectiles are not created
+                        // in the same frame (EF_IN_STAGING_LIST assert in upstream #258).
+                        AddTimer(grenadeThrown.Delay + 0.05f * throwSlot++, () => grenadeThrown.Throw(player), CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
                         // PrintToPlayerChat(player, $"Throwing grenade of history position: {positionNumber+1}/{lastGrenadesData[userId].Count}");
                         PrintToPlayerChat(player, Localizer["matchzy.pm.throwgrenadehistory", $"{positionNumber + 1}/{lastGrenadesData[userId].Count}"]);
                     }

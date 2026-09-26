@@ -80,6 +80,12 @@ public partial class MatchZy
         coachKillTimer = null;
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
+        int freezeTime = ConVar.Find("mp_freezetime")!.GetPrimitiveValue<int>();
+        freezeTime = freezeTime > 2 ? freezeTime: 2;
+        // Arm before the coach-spawn check: without spawns/coach/<map>.json the early return
+        // below used to skip this, so coaches never died after freezetime (upstream #264).
+        coachKillTimer ??= AddTimer(freezeTime - 1f, KillCoaches, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+
         if (spawnsData.Values.Any(list => list.Count == 0)) GetSpawns();
         if (coachSpawns.Count == 0 || 
             coachSpawns[(byte)CsTeam.CounterTerrorist].Count == 0 || 
@@ -89,10 +95,6 @@ public partial class MatchZy
             return;
         }
 
-        int freezeTime = ConVar.Find("mp_freezetime")!.GetPrimitiveValue<int>();
-        freezeTime = freezeTime > 2 ? freezeTime: 2;
-        coachKillTimer ??= AddTimer(freezeTime - 1f, KillCoaches);
-
         Random random = new();
         foreach (CCSPlayerController coach in coaches)
         {
@@ -101,7 +103,7 @@ public partial class MatchZy
             int coachTeamNum = teamSides[coachTeam] == "CT" ? 3 : 2;
             coach.InGameMoneyServices!.Account = 0;
 
-            AddTimer(0.5f, () => HandleCoachTeam(coach));
+            AddTimer(0.5f, () => HandleCoachTeam(coach), CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
 
             coach.ActionTrackingServices!.MatchStats.Kills = 0;
             coach.ActionTrackingServices!.MatchStats.Deaths = 0;
@@ -113,8 +115,7 @@ public partial class MatchZy
             coach.PlayerPawn.Value!.MoveType = MoveType_t.MOVETYPE_NONE;
             coach.PlayerPawn.Value!.ActualMoveType = MoveType_t.MOVETYPE_NONE;
 
-            List<Position> coachTeamSpawns = coachSpawns[coach.TeamNum];
-            Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
+            if (!coachSpawns.TryGetValue(coach.TeamNum, out var coachTeamSpawns) || coachTeamSpawns.Count == 0) continue;
 
             // Picking a random position for the coach (from coachSpawns) to teleport them.
             Position newPosition = coachTeamSpawns[random.Next(0, coachTeamSpawns.Count)];
@@ -123,9 +124,10 @@ public partial class MatchZy
             AddTimer(0.05f, () =>
             {
                 // coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                if (!IsPlayerValid(coach)) return;
                 HandleCoachWeapons(coach);
-                coach!.PlayerPawn.Value.Teleport(newPosition.PlayerPosition, newPosition.PlayerAngle, new Vector(0, 0, 0));
-            });
+                coach.PlayerPawn.Value!.Teleport(newPosition.PlayerPosition, newPosition.PlayerAngle, new Vector(0, 0, 0));
+            }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
 
         }
 
@@ -140,8 +142,10 @@ public partial class MatchZy
         {
             if (!IsPlayerValid(player) || coaches.Contains(player)) continue;
 
-            List<Position> teamPositions = spawnsData[player.TeamNum];
-            Position playerPosition = new(player.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, player.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
+            if (!spawnsData.TryGetValue(player.TeamNum, out var teamPositions)) continue;
+            var playerNode = player.PlayerPawn.Value!.CBodyComponent?.SceneNode;
+            if (playerNode == null) continue;
+            Position playerPosition = new(playerNode.AbsOrigin, playerNode.AbsRotation);
             bool isCompetitiveSpawn = false;
             foreach (Position position in teamPositions)
             {
@@ -162,16 +166,16 @@ public partial class MatchZy
         {
             if (!IsPlayerValid(player) || coaches.Contains(player)) continue;
 
-            List<Position> teamPositions = spawnsData[player.TeamNum];
-            Position playerPosition = new(player.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, player.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
+            if (!spawnsData.TryGetValue(player.TeamNum, out var teamPositions)) continue;
             foreach (Position position in teamPositions)
             {
                 if (occupiedSpawns.Contains(position)) continue;
                 occupiedSpawns.Add(position);
                 AddTimer(0.1f, () =>
                 {
-                    player!.PlayerPawn.Value.Teleport(position.PlayerPosition, position.PlayerAngle, new Vector(0, 0, 0));
-                });
+                    if (!IsPlayerValid(player)) return;
+                    player.PlayerPawn.Value!.Teleport(position.PlayerPosition, position.PlayerAngle, new Vector(0, 0, 0));
+                }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
                 break;
             }
         }
@@ -239,11 +243,17 @@ public partial class MatchZy
 
     private void HandleCoachTeam(CCSPlayerController playerController)
     {
+        if (playerController == null || !playerController.IsValid) return;
         CsTeam oldTeam = GetCoachTeam(playerController);
+        if (oldTeam == CsTeam.Spectator) return; // no longer a coach
         if (playerController.Team != oldTeam)
         {
             playerController.ChangeTeam(CsTeam.Spectator);
-            AddTimer(0.01f, () => playerController.ChangeTeam(oldTeam));
+            AddTimer(0.01f, () =>
+            {
+                if (playerController.IsValid && playerController.Connected == PlayerConnectedState.PlayerConnected)
+                    playerController.ChangeTeam(oldTeam);
+            }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
         }
         if (playerController.InGameMoneyServices != null) playerController.InGameMoneyServices.Account = 0;
     }
@@ -259,16 +269,33 @@ public partial class MatchZy
         string specFreezeDeathanim = GetConvarStringValue(ConVar.Find("spec_freeze_deathanim_time"));
         Server.ExecuteCommand("mp_suicide_penalty 0;spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
 
-        foreach (var coach in coaches)
+        try
         {
-            if (!IsPlayerValid(coach)) continue;
-            if (isPaused || IsTacticalTimeoutActive()) continue;
-
-            Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
-            coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
-            coach.PlayerPawn.Value!.CommitSuicide(explode: false, force: true);
+            foreach (var coach in coaches)
+            {
+                if (!IsPlayerValid(coach)) continue;
+                if (isPaused || IsTacticalTimeoutActive()) continue;
+                var pawn = coach.PlayerPawn.Value!;
+                // CommitSuicide on a dead/dying pawn is a native call on a pawn with no valid state.
+                if (pawn.LifeState != (byte)LifeState_t.LIFE_ALIVE) continue;
+                var node = pawn.CBodyComponent?.SceneNode;
+                if (node != null)
+                {
+                    Position coachPosition = new(node.AbsOrigin, node.AbsRotation);
+                    pawn.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                }
+                pawn.CommitSuicide(explode: false, force: true);
+            }
         }
-        Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
+        catch (Exception e)
+        {
+            Log($"[KillCoaches FATAL] {e.Message}");
+        }
+        finally
+        {
+            // Always restore: an exception above used to leave spec_freeze_time 0 = no deathcam (upstream #264).
+            Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
+        }
     }
 
     private void GetCoachSpawns()

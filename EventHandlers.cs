@@ -175,11 +175,18 @@ public partial class MatchZy
                 coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
                 AddTimer(1.5f, () =>
                 {
-                    coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                    // Coach may have disconnected / been removed in the last 1.5s.
+                    if (!IsPlayerValid(coach)) return;
                     CsTeam oldTeam = GetCoachTeam(coach);
+                    if (oldTeam == CsTeam.Spectator) return;
+                    coach.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
                     coach.ChangeTeam(CsTeam.Spectator);
-                    AddTimer(0.01f, () => coach.ChangeTeam(oldTeam));
-                });
+                    AddTimer(0.01f, () =>
+                    {
+                        if (coach.IsValid && coach.Connected == PlayerConnectedState.PlayerConnected)
+                            coach.ChangeTeam(oldTeam);
+                    }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+                }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
             }
             return HookResult.Continue;
         }
