@@ -11,6 +11,29 @@ namespace MatchZy
     public partial class MatchZy
     {
 
+        // LANN: machine-readable match state for other plugins (ranks/stats must only count LIVE rounds).
+        // 0 idle  1 warmup  2 knife  3 side-selection  4 live  5 live-paused  6 practice  7 dry-run  8 veto
+        // Recomputed every 0.25s by UpdateMatchStateConvar(); writing it by hand has no lasting effect.
+        public FakeConVar<int> matchStateConvar = new("matchzy_match_state", "READ-ONLY. 0 idle,1 warmup,2 knife,3 side-select,4 live,5 paused,6 practice,7 dry-run,8 veto", 0);
+
+        public int ComputeMatchState()
+        {
+            if (isDryRun) return 7;
+            if (isPractice) return 6;
+            if (isPreVeto || isVeto) return 8;
+            if (isKnifeRound) return 2;
+            if (isSideSelectionPhase) return 3;
+            if (isMatchLive) return isPaused ? 5 : 4;
+            if (isWarmup) return 1;
+            return 0;
+        }
+
+        public void UpdateMatchStateConvar()
+        {
+            int s = ComputeMatchState();
+            if (matchStateConvar.Value != s) matchStateConvar.Value = s;
+        }
+
         public FakeConVar<bool> smokeColorEnabled = new("matchzy_smoke_color_enabled", "Whether player-specific smoke color is enabled or not. Default: false", false);
         public FakeConVar<bool> techPauseEnabled = new("matchzy_enable_tech_pause", "Whether .tech command is enabled or not. Default: true", true);
         public FakeConVar<string> techPausePermission  = new("matchzy_tech_pause_flag", "Flag required to use tech pause", "");

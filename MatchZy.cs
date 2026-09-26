@@ -88,6 +88,9 @@ namespace MatchZy
             
             LoadAdmins();
 
+            // LANN: publish match state for other plugins (see ConfigConvars.matchStateConvar)
+            AddTimer(0.25f, UpdateMatchStateConvar, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
+
             database.InitializeDatabase(ModuleDirectory);
 
             // This sets default config ConVars
