@@ -367,7 +367,7 @@ namespace MatchZy
                     AddTimer(restoreTimer, () => {
                         string fileName = Path.GetFileName(tempFilePath);
 
-                        Server.ExecuteCommand($"mp_backup_restore_load_file {fileName}");
+                        Server.ExecuteCommand($"mp_backup_restore_load_file \"{ConsoleSafe(fileName)}\"");
                         StartDemoRecording();
                     });
                     // AddTimer(5, () => File.Delete(tempFilePath));
@@ -574,7 +574,7 @@ namespace MatchZy
 
             Log($"[LoadBackupFromURL] Backup Restore request received with URL: {url} headerName: {headerName} and headerValue: {headerValue}");
 
-            if (!IsValidUrl(url))
+            if (!IsValidUrl(url) || (!allowInsecureMatchUrl.Value && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
             {
                 ReplyToUserCommand(player, Localizer["matchzy.mm.invalidurl", url]);
                 Log($"[LoadBackupFromURL] Invalid URL: {url}. Please provide a valid URL to load the backup!");

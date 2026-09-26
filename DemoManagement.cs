@@ -34,7 +34,7 @@ namespace MatchZy
                 Log("[StartDemoRecording] Demo recording is already in progress.");
                 return;
             }
-            string demoFileName = FormatCvarValue(demoNameFormat.Replace(" ", "_")) + ".dem";
+            string demoFileName = ConsoleSafe(FormatCvarValue(demoNameFormat.Replace(" ", "_"))).Replace(" ", "_") + ".dem";
             try
             {
                 string? directoryPath = Path.GetDirectoryName(Path.Join(Server.GameDirectory + "/csgo/", demoPath));
@@ -48,14 +48,14 @@ namespace MatchZy
                 string tempDemoPath = demoPath == "" ? demoFileName : demoPath + demoFileName;
                 activeDemoFile = tempDemoPath;
                 Log($"[StartDemoRecoding] Starting demo recording, path: {tempDemoPath}");
-                Server.ExecuteCommand($"tv_record {tempDemoPath}");
+                Server.ExecuteCommand($"tv_record \"{ConsoleSafe(tempDemoPath)}\"");
                 isDemoRecording = true;
             }
             catch (Exception ex)
             {
                 Log($"[StartDemoRecording - FATAL] Error: {ex.Message}. Starting demo recording with path. Name: {demoFileName}");
                 // This is to avoid demo loss in any case of exception
-                Server.ExecuteCommand($"tv_record {demoFileName}");
+                Server.ExecuteCommand($"tv_record \"{demoFileName}\"");
                 isDemoRecording = true;
             }
 

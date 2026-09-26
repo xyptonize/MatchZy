@@ -459,8 +459,8 @@ namespace MatchZy
                 matchzyTeam1.seriesScore = 0;
                 matchzyTeam2.seriesScore = 0;
 
-                Server.ExecuteCommand($"mp_teamname_1 {matchzyTeam1.teamName}");
-                Server.ExecuteCommand($"mp_teamname_2 {matchzyTeam2.teamName}");
+                Server.ExecuteCommand($"mp_teamname_1 \"{ConsoleSafe(matchzyTeam1.teamName)}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{ConsoleSafe(matchzyTeam2.teamName)}\"");
 
                 teamSides[matchzyTeam1] = "CT";
                 teamSides[matchzyTeam2] = "TERRORIST";
@@ -763,8 +763,8 @@ namespace MatchZy
                 // Server.ExecuteCommand($"mp_teamname_2 {matchzyTeam2.teamName}");
             }
 
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+            Server.ExecuteCommand($"mp_teamname_1 \"{ConsoleSafe(reverseTeamSides["CT"].teamName)}\"");
+            Server.ExecuteCommand($"mp_teamname_2 \"{ConsoleSafe(reverseTeamSides["TERRORIST"].teamName)}\"");
 
             HandleClanTags();
 
@@ -1436,12 +1436,33 @@ namespace MatchZy
             foreach (JProperty player in players)
             {
                 string steamId = player.Name;
-                string escapedName = player.Value.ToString().Replace("\"", "\\\"").Trim();
+                if (!ulong.TryParse(steamId, out _)) continue;
+                string escapedName = player.Value.ToString().Replace("\"", "'").Replace("\r", "").Replace("\n", "").Replace("\0", "").Trim();
 
                 if (string.IsNullOrEmpty(escapedName)) continue;
 
                 sb.AppendLine($"\t\"{steamId}\"\t\t\"{escapedName}\"");
             }
+        }
+
+        private static readonly Regex SafeCvarNameRegex = new("^[a-z0-9_]+$", RegexOptions.Compiled);
+
+        // CS2 console: backslash does not escape a quote, and ; / CR / LF split commands even inside quotes.
+        public static bool IsSafeCvarName(string name) => SafeCvarNameRegex.IsMatch(name);
+
+        public static bool IsSafeConsoleValue(string value) => value.IndexOfAny(new[] { '"', ';', '\r', '\n', '\0' }) < 0;
+
+        // Strips characters that can break out of a quoted console argument. Spaces are preserved.
+        public static string ConsoleSafe(string? value)
+        {
+            if (string.IsNullOrEmpty(value)) return "";
+            var sb = new StringBuilder(value.Length);
+            foreach (char c in value)
+            {
+                if (c == '"' || c == ';' || c == '\r' || c == '\n' || c == '\0') continue;
+                sb.Append(c);
+            }
+            return sb.ToString();
         }
 
         static bool IsValidUrl(string url)
@@ -1515,7 +1536,8 @@ namespace MatchZy
         {
             foreach (string key in matchConfig.ChangedCvars.Keys)
             {
-                string value = matchConfig.ChangedCvars[key];
+                if (!IsSafeCvarName(key)) continue;
+                string value = ConsoleSafe(matchConfig.ChangedCvars[key]);
                 Log($"[ExecuteChangedConvars] Execing: {key} \"{value}\"");
                 Server.ExecuteCommand($"{key} \"{value}\"");
             }
@@ -1525,9 +1547,10 @@ namespace MatchZy
         {
             foreach (string key in matchConfig.OriginalCvars.Keys)
             {
-                string value = matchConfig.OriginalCvars[key];
+                if (!IsSafeCvarName(key)) continue;
+                string value = ConsoleSafe(matchConfig.OriginalCvars[key]);
                 Log($"[ResetChangedConvars] Execing: {key} \"{value}\"");
-                Server.ExecuteCommand($"{key} {value}");
+                Server.ExecuteCommand($"{key} \"{value}\"");
             }
         }
 
@@ -1554,7 +1577,7 @@ namespace MatchZy
             if (hostname == "" || hostname == "\"\"") return;
             string formattedHostname = FormatCvarValue(hostname);
             Log($"UPDATING HOSTNAME TO: {formattedHostname}");
-            Server.ExecuteCommand($"hostname {formattedHostname}");
+            Server.ExecuteCommand($"hostname \"{ConsoleSafe(formattedHostname)}\"");
         }
 
         public CCSGameRules GetGameRules()

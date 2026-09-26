@@ -1125,7 +1125,7 @@ namespace MatchZy
                     Log($"Kicking bot {player.PlayerName} due to erroneous spawning");
                     AddTimer(2.5f, () =>
                     {
-                        Server.ExecuteCommand($"bot_kick {player.PlayerName}");
+                        if (player.IsValid && player.UserId.HasValue) Server.ExecuteCommand($"kickid {player.UserId.Value}");
                     });
                 }
             }

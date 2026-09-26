@@ -43,6 +43,8 @@ namespace MatchZy
 
         public FakeConVar<bool> everyoneIsAdmin = new("matchzy_everyone_is_admin", "If set to true, all the players will have admin privilege. Default: false", false);
 
+        public FakeConVar<bool> allowInsecureMatchUrl = new("matchzy_allow_insecure_match_url", "Allow plain http:// URLs for matchzy_loadmatch_url / matchzy_load_backup_url. Default: false (https required)", false);
+
         public FakeConVar<bool> showCreditsOnMatchStart = new("matchzy_show_credits_on_match_start", "Whether to show 'MatchZy Plugin by WD-' message on match start. Default: true", true);
 
         public FakeConVar<string> hostnameFormat = new("matchzy_hostname_format", "The server hostname to use. Set to \"\" to disable/use existing. Default: MatchZy | {TEAM1} vs {TEAM2}", "MatchZy | {TEAM1} vs {TEAM2}");

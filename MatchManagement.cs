@@ -101,7 +101,7 @@ namespace MatchZy
 
             Log($"[LoadMatchDataCommand] Match setup request received with URL: {url} headerName: {headerName} and headerValue: {headerValue}");
 
-            if (!IsValidUrl(url))
+            if (!IsValidUrl(url) || (!allowInsecureMatchUrl.Value && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
             {
                 // command.ReplyToCommand($"[LoadMatchDataCommand] Invalid URL: {url}. Please provide a valid URL to load the match!");
                 ReplyToUserCommand(player, Localizer["matchzy.mm.invalidurl", url]);
@@ -412,8 +412,8 @@ namespace MatchZy
 
         public void SetTeamNames()
         {
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+            Server.ExecuteCommand($"mp_teamname_1 \"{ConsoleSafe(reverseTeamSides["CT"].teamName)}\"");
+            Server.ExecuteCommand($"mp_teamname_2 \"{ConsoleSafe(reverseTeamSides["TERRORIST"].teamName)}\"");
         }
 
         public void GetCvarValues(JObject jsonDataObject)
@@ -426,6 +426,12 @@ namespace MatchZy
                 {
                     string cvarName = cvarData.Name;
                     string cvarValue = cvarData.Value.ToString();
+
+                    if (!IsSafeCvarName(cvarName) || !IsSafeConsoleValue(cvarValue))
+                    {
+                        Log($"[GetCvarValues] Rejected unsafe cvar entry from match config: {ConsoleSafe(cvarName)}");
+                        continue;
+                    }
 
                     var cvar = ConVar.Find(cvarName);
                     matchConfig.ChangedCvars[cvarName] = cvarValue;
@@ -521,7 +527,7 @@ namespace MatchZy
                     coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
                 }
             }
-            Server.ExecuteCommand($"mp_teamname_{teamNum} {teamName};");
+            Server.ExecuteCommand($"mp_teamname_{teamNum} \"{ConsoleSafe(teamName)}\"");
         }
 
         public void SwapSidesInTeamData(bool swapTeams) {
