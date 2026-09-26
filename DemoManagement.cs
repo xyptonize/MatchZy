@@ -18,6 +18,7 @@ namespace MatchZy
         public string demoUploadHeaderValue = "";
 
         public string activeDemoFile = "";
+        public int demoSeq = 0; // LANN: identifies a recording even if the name format repeats
 
         public bool isDemoRecording = false;
         public bool isDemoRecordingEnabled = true;
@@ -47,6 +48,7 @@ namespace MatchZy
                 }
                 string tempDemoPath = demoPath == "" ? demoFileName : demoPath + demoFileName;
                 activeDemoFile = tempDemoPath;
+                demoSeq++;
                 Log($"[StartDemoRecoding] Starting demo recording, path: {tempDemoPath}");
                 Server.ExecuteCommand($"tv_record \"{ConsoleSafe(tempDemoPath)}\"");
                 isDemoRecording = true;
@@ -56,6 +58,7 @@ namespace MatchZy
                 Log($"[StartDemoRecording - FATAL] Error: {ex.Message}. Starting demo recording with path. Name: {demoFileName}");
                 // This is to avoid demo loss in any case of exception
                 Server.ExecuteCommand($"tv_record \"{demoFileName}\"");
+                demoSeq++;
                 isDemoRecording = true;
             }
 
@@ -68,11 +71,12 @@ namespace MatchZy
             (int t1score, int t2score) = GetTeamsScore();
             int roundNumber = t1score + t2score;
             string demoToStop = activeDemoFile;
+            int seqToStop = demoSeq;
             AddTimer(delay, () =>
             {
                 // A new recording may already have started (next map / next match) while this timer
                 // was pending; stopping then would kill the new demo and leave isDemoRecording wrong.
-                if (isDemoRecording && this.activeDemoFile != demoToStop)
+                if (isDemoRecording && demoSeq != seqToStop)
                 {
                     Log($"[StopDemoRecording] Skipping stop of {demoToStop}: {this.activeDemoFile} is now recording.");
                 }

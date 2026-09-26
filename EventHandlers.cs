@@ -38,8 +38,9 @@ public partial class MatchZy
 
             if (player.UserId.HasValue)
             {
+                bool isNewPlayer = !playerData.ContainsKey(player.UserId.Value); // LANN: connect-full can re-fire (map change)
                 playerData[player.UserId.Value] = player;
-                connectedPlayers++;
+                if (isNewPlayer) connectedPlayers++;
                 if (readyAvailable && !matchStarted)
                 {
                     playerReadyStatus[player.UserId.Value] = false;

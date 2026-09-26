@@ -527,12 +527,12 @@ namespace MatchZy
             if (long.TryParse(currentMapName, out _))
             { // Check if mapName is a long for workshop map ids
                 Server.ExecuteCommand($"bot_kick");
-                Server.ExecuteCommand($"host_workshop_map \"{currentMapName}\"");
+                ExecMapCommand("host_workshop_map", currentMapName);
             }
             else if (Server.IsMapValid(currentMapName))
             {
                 Server.ExecuteCommand($"bot_kick");
-                Server.ExecuteCommand($"changelevel \"{currentMapName}\"");
+                ExecMapCommand("changelevel", currentMapName);
             }
             else
             {

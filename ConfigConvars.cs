@@ -23,7 +23,7 @@ namespace MatchZy
             if (isPreVeto || isVeto) return 8;
             if (isKnifeRound) return 2;
             if (isSideSelectionPhase) return 3;
-            if (isMatchLive) return isPaused ? 5 : 4;
+            if (isMatchLive) return (isPaused || IsTacticalTimeoutActive()) ? 5 : 4;
             if (isWarmup) return 1;
             return 0;
         }

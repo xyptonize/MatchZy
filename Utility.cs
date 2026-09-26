@@ -639,12 +639,12 @@ namespace MatchZy
             if (long.TryParse(mapName, out _))
             { // Check if mapName is a long for workshop map ids
                 Server.ExecuteCommand($"bot_kick");
-                Server.ExecuteCommand($"host_workshop_map \"{mapName}\"");
+                ExecMapCommand("host_workshop_map", mapName);
             }
             else if (Server.IsMapValid(mapName))
             {
                 Server.ExecuteCommand($"bot_kick");
-                Server.ExecuteCommand($"changelevel \"{mapName}\"");
+                ExecMapCommand("changelevel", mapName);
             }
             else
             {
@@ -884,8 +884,10 @@ namespace MatchZy
                 StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, team2SeriesScore, t2score, 0, 0, mapStatsTeam2)
             };
 
+            var priorRoundStats = lastRoundStatsTask; // LANN: CSV must include the final round's stats
             Task.Run(async () =>
             {
+                try { await priorRoundStats; } catch { }
                 await SendEventAsync(mapResultEvent);
                 await database.SetMapEndData(liveMatchId, currentMapNumber, winnerName, t1score, t2score, team1SeriesScore, team2SeriesScore);
                 await database.WritePlayerStatsToCsv(statsPath, liveMatchId, currentMapNumber);
@@ -978,12 +980,12 @@ namespace MatchZy
                 if (long.TryParse(mapName, out _))
                 {
                     Server.ExecuteCommand($"bot_kick");
-                    Server.ExecuteCommand($"host_workshop_map \"{mapName}\"");
+                    ExecMapCommand("host_workshop_map", mapName);
                 }
                 else if (Server.IsMapValid(mapName))
                 {
                     Server.ExecuteCommand($"bot_kick");
-                    Server.ExecuteCommand($"changelevel \"{mapName}\"");
+                    ExecMapCommand("changelevel", mapName);
                 }
             });
         }
@@ -1077,7 +1079,7 @@ namespace MatchZy
                         StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, matchzyTeam2.seriesScore, t2score, 0, 0, playerStatsListTeam2),
                     };
 
-                    Task.Run(async () =>
+                    lastRoundStatsTask = Task.Run(async () =>
                     {
                         await SendEventAsync(roundEndEvent);
                         await database.UpdatePlayerStatsAsync(matchId, currentMapNumber, playerStatsDictionary);
@@ -1459,6 +1461,17 @@ namespace MatchZy
         private static readonly Regex SafeCvarNameRegex = new("^[a-z0-9_]+$", RegexOptions.Compiled);
 
         // CS2 console: backslash does not escape a quote, and ; / CR / LF split commands even inside quotes.
+        // LANN: map names reach changelevel/host_workshop_map from match JSON (URL-loadable) and veto picks.
+        // `;`/LF split console commands even inside quotes, so only allow map-name characters.
+        private static readonly Regex SafeMapNameRegex = new("^[A-Za-z0-9_./-]{1,96}$", RegexOptions.Compiled);
+        public static bool IsSafeMapName(string map) => SafeMapNameRegex.IsMatch(map) && !map.Contains("..");
+        private Task lastRoundStatsTask = Task.CompletedTask; // LANN: ordered before map-end CSV/stats
+        private void ExecMapCommand(string verb, string map)
+        {
+            if (!IsSafeMapName(map)) { Log($"[ExecMapCommand] REFUSED unsafe map name for {verb}: {ConsoleSafe(map)}"); return; }
+            Server.ExecuteCommand($"{verb} \"{map}\"");
+        }
+
         public static bool IsSafeCvarName(string name) => SafeCvarNameRegex.IsMatch(name);
 
         public static bool IsSafeConsoleValue(string value) => value.IndexOfAny(new[] { '"', ';', '\r', '\n', '\0' }) < 0;

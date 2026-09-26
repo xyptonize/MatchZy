@@ -427,7 +427,9 @@ namespace MatchZy
                     string cvarName = cvarData.Name;
                     string cvarValue = cvarData.Value.ToString();
 
-                    if (!IsSafeCvarName(cvarName) || !IsSafeConsoleValue(cvarValue))
+                    cvarName = cvarName.ToLowerInvariant();   // console cvar names are case-insensitive
+                    cvarValue = ConsoleSafe(cvarValue);        // strip " ; CR LF NUL rather than drop the entry
+                    if (!IsSafeCvarName(cvarName))
                     {
                         Log($"[GetCvarValues] Rejected unsafe cvar entry from match config: {ConsoleSafe(cvarName)}");
                         continue;
