@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    LANN: shared contract between the LANN MatchZy fork (provider) and any plugin that needs the match state
+    (consumer, e.g. LannRanks). Capability name "matchzy:state".
+
+    DEPLOYED ONCE per server at   addons/counterstrikesharp/shared/MatchZyStateApi/MatchZyStateApi.dll
+    CSS loads shared/<Name>/<Name>.dll once at boot and every plugin (PreferSharedTypes) resolves it from there,
+    so provider and consumer see ONE IMatchZyState type. Plugins reference it with Private=false and must NEVER
+    ship a copy next to their own DLL (a private copy is a second, incompatible type).
+
+    Deliberately dependency-free (no CounterStrikeSharp reference) and net8.0 so both the net8.0 MatchZy fork and
+    net10.0 LANN plugins can reference it. No PDB and no commit id in the version string, so the DLL's md5 only
+    changes when this source changes. Keep the public surface backward compatible: additive changes only.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MatchZyStateApi</AssemblyName>
+    <RootNamespace>MatchZyStateApi</RootNamespace>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+  </PropertyGroup>
+</Project>

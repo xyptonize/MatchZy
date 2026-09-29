@@ -23,4 +23,19 @@
     <None Update="lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="spawns\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <!-- LANN: "matchzy:state" capability contract (StateApi/). It is its own assembly, deployed ONCE per server at
+       addons/counterstrikesharp/shared/MatchZyStateApi/MatchZyStateApi.dll. Its sources must not be compiled into
+       MatchZy.dll (that would be a second IMatchZyState type), and MatchZy must never ship a copy of the DLL. -->
+  <ItemGroup>
+    <Compile Remove="StateApi/**" />
+    <None Remove="StateApi/**" />
+    <EmbeddedResource Remove="StateApi/**" />
+    <ProjectReference Include="StateApi/MatchZyStateApi.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Target Name="LannNoPrivateStateApi" AfterTargets="Build">
+    <Error Condition="Exists('$(OutDir)MatchZyStateApi.dll')" Text="MatchZyStateApi.dll was copied to $(OutDir). It must only exist under shared/MatchZyStateApi/ on the server; delete it from the output and keep Private=false." />
+  </Target>
 </Project>

@@ -11,9 +11,11 @@ namespace MatchZy
     public partial class MatchZy
     {
 
-        // LANN: machine-readable match state for other plugins (ranks/stats must only count LIVE rounds).
+        // LANN: machine-readable match state (ranks/stats must only count LIVE rounds).
         // 0 idle  1 warmup  2 knife  3 side-selection  4 live  5 live-paused  6 practice  7 dry-run  8 veto
         // Recomputed every 0.25s by UpdateMatchStateConvar(); writing it by hand has no lasting effect.
+        // The FakeConVar is for the console/RCON only: other plugins cannot see a FakeConVar (ConVar.Find returns
+        // null), so they read the same value through the "matchzy:state" capability (StateCapability.cs).
         public FakeConVar<int> matchStateConvar = new("matchzy_match_state", "READ-ONLY. 0 idle,1 warmup,2 knife,3 side-select,4 live,5 paused,6 practice,7 dry-run,8 veto", 0);
 
         public int ComputeMatchState()
@@ -28,10 +30,20 @@ namespace MatchZy
             return 0;
         }
 
+        // Last state handed to the matchzy:state capability. Starts at 0 (idle), the provider's initial value.
+        // Tracked separately from the FakeConVar so a manual `matchzy_match_state N` cannot fake a transition.
+        private int publishedMatchState = 0;
+
         public void UpdateMatchStateConvar()
         {
             int s = ComputeMatchState();
             if (matchStateConvar.Value != s) matchStateConvar.Value = s;
+            if (s != publishedMatchState)
+            {
+                publishedMatchState = s;
+                // Other plugins read the state through the capability; ConVar.Find cannot see a FakeConVar.
+                MatchStateCapability.Changed(s);
+            }
         }
 
         public FakeConVar<bool> smokeColorEnabled = new("matchzy_smoke_color_enabled", "Whether player-specific smoke color is enabled or not. Default: false", false);

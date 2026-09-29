@@ -2,3 +2,6 @@ obj/*
 bin/*
 /.vs
 MatchZy.sln
+# LANN: MatchZyStateApi contract build output
+StateApi/bin/
+StateApi/obj/

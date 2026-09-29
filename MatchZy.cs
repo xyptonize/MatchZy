@@ -14,7 +14,7 @@ namespace MatchZy
 
         public override string ModuleName => "MatchZy";
 
-        public override string ModuleVersion => "0.8.15-lann2";
+        public override string ModuleVersion => "0.8.15-lann3";
 
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
@@ -83,7 +83,14 @@ namespace MatchZy
 
         // SQLite/MySQL Database 
         private Database database = new();
-    
+
+        public override void Unload(bool hotReload)
+        {
+            // LANN: give up the matchzy:state slot so consumers fall back instead of reading this (dead) instance.
+            MatchStateCapability.Withdraw();
+            base.Unload(hotReload);
+        }
+
         public override void Load(bool hotReload) {
             
             LoadAdmins();
@@ -548,6 +555,13 @@ namespace MatchZy
             RegisterEventHandler<EventHegrenadeDetonate>(EventHegrenadeDetonateHandler);
             RegisterEventHandler<EventMolotovDetonate>(EventMolotovDetonateHandler);
             RegisterEventHandler<EventDecoyStarted>(EventDecoyDetonateHandler);
+
+            // LANN: the "matchzy:state" capability, published LAST so a Load that throws earlier never leaves a
+            // frozen provider behind (consumers then keep their fallback). Optional: without
+            // shared/MatchZyStateApi MatchZy still runs (FakeConVar only) and says so here.
+            Console.WriteLine(MatchStateCapability.Publish(publishedMatchState)
+                ? "[MatchZy] capability matchzy:state published"
+                : $"[MatchZy] capability matchzy:state NOT published ({MatchStateCapability.Detail}) - is addons/counterstrikesharp/shared/MatchZyStateApi/MatchZyStateApi.dll installed?");
 
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
         }
